@@ -9,6 +9,7 @@
 //    characters are due to a newline characters between each input and at the
 //    end of the file.
 
+// blokc size should be 16
 
 #define HEX_INPUT_SIZE 262144
 

@@ -3,12 +3,12 @@
 
 
 int power(int a, int b) {
-	int ret = 1;
-	int i;
-	for(i = 0; i < b; ++i) {
-		ret *= a;
-	}
-	return ret;
+    int ret = 1;
+    int i;
+    for(i = 0; i < b; ++i) {
+        ret *= a;
+    }
+    return ret;
 }
 
 void handleInput(int *a, int *b, int size) {
@@ -84,7 +84,7 @@ void printArray(int *n, int size) {
 void calcOneGenPro(int *g, int *p, int *gg, int *pp, int size) {
 	// Calculate gg and pp for all [size] groups of 4
     int j;
-	int i;
+    int i;
     for(j = 0; j < size; ++j) {
         i = j * 4;
         gg[j] = g[i + 3] | (p[i + 3] & g[i + 2])
@@ -95,25 +95,25 @@ void calcOneGenPro(int *g, int *p, int *gg, int *pp, int size) {
 }
 
 void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_size) {
-	int i;
-	// Calculate generate and propagate for all bits
+    int i;
+    // Calculate generate and propagate for all bits
     for(i = 0; i < max_size; ++i) {
         gs[0][i] = a[i] & b[i];
         ps[0][i] = a[i] | b[i];
     }
 	
-	int size;
-	for(i = 1, size = max_size / block_size;
-				size > block_size; ++i) {
-		size = max_size / power(block_size, i);
-		calcOneGenPro(gs[i - 1], ps[i - 1], gs[i], ps[i], size);
-	}
+    int size;
+    for(i = 1, size = max_size / block_size;
+                size > block_size; ++i) {
+        size = max_size / power(block_size, i);
+        calcOneGenPro(gs[i - 1], ps[i - 1], gs[i], ps[i], size);
+    }
 }
 
 
 int main(int argc, char** argv) {
     int MAX_SIZE = 256;
-	int i;
+    int i;
     int a[MAX_SIZE];
     int b[MAX_SIZE];
 	
@@ -125,12 +125,12 @@ int main(int argc, char** argv) {
     int sp[MAX_SIZE / 16];
     int ssg[MAX_SIZE / 64];
     int ssp[MAX_SIZE / 64];
-	int* gs[4] = {g, gg, sg, ssg}; // size = log_{block_size}(MAX_SIZE) + 1
-	int* ps[4] = {p, gp, sp, ssp};
+    int* gs[4] = {g, gg, sg, ssg}; // size = log_{block_size}(MAX_SIZE) + 1
+    int* ps[4] = {p, gp, sp, ssp};
     
     handleInput(a, b, MAX_SIZE);
 	
-	calcAllGenPro(gs, ps, a, b, 4, MAX_SIZE);
+    calcAllGenPro(gs, ps, a, b, 4, MAX_SIZE);
     
     // Calculate generate and propagate for all 256 bits
 	
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
     
     // Calculate supersection carry for all 4 supersections
     int ssc[MAX_SIZE / 64];
-	int l;
+    int l;
     for(l = 0; l < MAX_SIZE / 64; ++l) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
     
     // Calculate section carry for all 16 sections
     int sc[MAX_SIZE / 16];
-	int k;
+    int k;
     for(k = 0; k < MAX_SIZE / 16; ++k) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
     
     // Calculate group carry for all 64 groups
     int gc[MAX_SIZE / 4];
-	int j;
+    int j;
     for(j = 0; j < MAX_SIZE / 4; ++j) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
