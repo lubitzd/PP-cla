@@ -110,6 +110,20 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
     }
 }
 
+void carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
+    c[0] = 0;
+
+    int i;
+    for(i = 1; i < size; ++i) {
+        // Calculate carry in for part i, i.e. carry out for i-1
+        if(i % blocksize == 0) {
+            c[i] = g[i - 1] | (p[i - 1] &  prevc[i / blocksize]);
+        } else {
+            c[i] = g[i - 1] | (p[i - 1] & c[i - 1]);
+        }
+    }
+}
+
 
 int main(int argc, char** argv) {
     int MAX_SIZE = 256;
@@ -145,7 +159,9 @@ int main(int argc, char** argv) {
     
     // Calculate supersection carry for all 4 supersections
     int ssc[MAX_SIZE / 64];
-    int l;
+    carry(ssc, NULL, ssg, ssp, 4, MAX_SIZE / 64);
+
+    /*int l;
     for(l = 0; l < MAX_SIZE / 64; ++l) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
@@ -156,11 +172,12 @@ int main(int argc, char** argv) {
         }
         
         ssc[l] = ssg[l] | (ssp[l] & carryIn);
-    }
-    
+    }*/
+
     // Calculate section carry for all 16 sections
     int sc[MAX_SIZE / 16];
-    int k;
+    carry(sc, ssc, sg, sp, 4, MAX_SIZE / 16);
+    /*int k;
     for(k = 0; k < MAX_SIZE / 16; ++k) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
@@ -175,11 +192,12 @@ int main(int argc, char** argv) {
         }
         
         sc[k] = sg[k] | (sp[k] & carryIn);
-    }
+    }*/
     
     // Calculate group carry for all 64 groups
     int gc[MAX_SIZE / 4];
-    int j;
+    carry(gc, sc, gg, gp, 4, MAX_SIZE / 4);
+    /*int j;
     for(j = 0; j < MAX_SIZE / 4; ++j) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
@@ -194,11 +212,12 @@ int main(int argc, char** argv) {
         }
         
         gc[j] = gg[j] | (gp[j] & carryIn);
-    }
+    }*/
     
     // Calculate carry for all 256 bits
     int c[MAX_SIZE];
-    for(i = 0; i < MAX_SIZE; ++i) {
+    carry(c, gc, g, p, 4, MAX_SIZE);
+    /*for(i = 0; i < MAX_SIZE; ++i) {
         // If this is the first carry operation, the carry in is 0
         int carryIn;
         if(i == 0) {
@@ -212,7 +231,7 @@ int main(int argc, char** argv) {
         }
         
         c[i] = g[i] | (p[i] & carryIn);
-    }
+    }*/
     
     // Calculate sum
     int sum[MAX_SIZE];
@@ -221,7 +240,7 @@ int main(int argc, char** argv) {
         if(i == 0) {
             carryIn = 0;
         } else {
-            carryIn = c[i - 1];
+            carryIn = c[i];
         }
         sum[i] = a[i] ^ b[i] ^ carryIn;
     }
