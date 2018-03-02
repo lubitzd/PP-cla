@@ -273,10 +273,26 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     
     
-    printHex(a, size);
-    printHex(b, size);
-    printHex(c, size);
-    printHex(sum, size);
+  //  printHex(a, size);
+   // printHex(b, size);
+    //printHex(c, size);
+   // printHex(sum, size);
+  
+   int total[MAX_SIZE];
+
+    //if(taskID == 0) {
+        // Gather the sums
+        MPI_Gather(sum, size, MPI_INT, total, size, MPI_INT, 0, MPI_COMM_WORLD);
+   // } else {
+    //    MPI_Gather(sum, size, MPI_INT, NULL, size, MPI_INT, 0, MPI_COMM_WORLD);
+   // }
+   
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if(taskID == 0) {
+        //printArray(total, MAX_SIZE);
+        printHex(total, MAX_SIZE);
+    }
 
     MPI_Finalize();
 
