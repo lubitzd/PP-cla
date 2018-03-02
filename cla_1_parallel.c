@@ -83,7 +83,7 @@ void printArray(int *n, int size) {
 
 
 void calcOneGenPro(int *g, int *p, int *gg, int *pp, int size) {
-	// Calculate gg and pp for all [size] groups of 4
+    // Calculate gg and pp for all [size] groups of 4
     int j;
     int i;
     for(j = 0; j < size; ++j) {
@@ -102,7 +102,7 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
         gs[0][i] = a[i] & b[i];
         ps[0][i] = a[i] | b[i];
     }
-	
+    
     int size;
     for(i = 1, size = max_size / block_size;
                 size > block_size; ++i) {
@@ -112,23 +112,6 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
 }
 
 int carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
-    //c[0] = 0;
-    int taskID;
-    int nTasks;
-    MPI_Comm_rank(MPI_COMM_WORLD, &taskID);
-    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
-
-    if(taskID == 0) {
-        c[0] = 0;
-    } else {
-        MPI_Request req;
-        MPI_Status stat;
-        int c_in;
-        MPI_Irecv(&c_in, 1, MPI_INT, taskID - 1, taskID, MPI_COMM_WORLD, &req);
-        MPI_Wait(&req, &stat);
-        c[0] = c_in;
-    }
-
     int i;
     for(i = 1; i < size; ++i) {
         // Calculate carry in for part i, i.e. carry out for i-1
@@ -138,9 +121,9 @@ int carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
             c[i] = g[i - 1] | (p[i - 1] & c[i - 1]);
         }
     }
-
-   if(taskID) {}
-   //TODO move MPI code out of function; it only happens once per thread
+    
+    // Return final carry out
+    return g[size - 1] | (p[size - 1] & c[size - 1]);
 }
 
 
@@ -186,7 +169,7 @@ int main(int argc, char** argv) {
     MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
 
     MPI_Barrier(MPI_COMM_WORLD);
-	
+    
     calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
     
     MPI_Barrier(MPI_COMM_WORLD);
@@ -195,9 +178,29 @@ int main(int argc, char** argv) {
    // int ssc[MAX_SIZE / 64];
    // carry(ssc, NULL, ssg, ssp, 4, MAX_SIZE / 64);
 
+    MPI_Request req;
+    MPI_Status stat;
+    int c_in;
+    // Don't receive if it's the first task
+    if(taskID == 0) {
+        c_in = 0;
+    } else {
+        MPI_Irecv(&c_in, 1, MPI_INT, taskID - 1, taskID, MPI_COMM_WORLD, &req);
+        MPI_Wait(&req, &stat);
+    }
+   
     // Calculate section carry for all 16 sections
     int sc[size / s_size];
-    carry(sc, /*ssc*/ NULL, sg, sp, BLOCK_SIZE, size / s_size);
+    sc[0] = c_in;
+    int c_out = carry(sc, /*ssc*/ NULL, sg, sp, BLOCK_SIZE, size / s_size);
+    
+    // Don't send if it's the last one
+    if(taskID != (nTasks - 1)) {
+        // Send cout
+        MPI_Isend(&c_out, 1, MPI_INT, taskID + 1, taskID + 1, MPI_COMM_WORLD, &req);
+        MPI_Wait(&req, &stat);
+    }
+    
     
     // Calculate group carry for all 64 groups
     int gc[size / g_size];
