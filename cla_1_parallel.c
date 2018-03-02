@@ -1,5 +1,6 @@
-#include "stdio.h"
-#include "string.h"
+#include <stdio.h>
+#include <string.h>
+#include <mpi.h>
 
 
 int power(int a, int b) {
@@ -110,8 +111,23 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
     }
 }
 
-void carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
-    c[0] = 0;
+int carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
+    //c[0] = 0;
+    int taskID;
+    int nTasks;
+    MPI_Comm_rank(MPI_COMM_WORLD, &taskID);
+    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
+
+    if(taskID == 0) {
+        c[0] = 0;
+    } else {
+        MPI_Request req;
+        MPI_Status stat;
+        int c_in;
+        MPI_Irecv(&c_in, 1, MPI_INT, taskID - 1, taskID, MPI_COMM_WORLD, &req);
+        MPI_Wait(&req, &stat);
+        c[0] = c_in;
+    }
 
     int i;
     for(i = 1; i < size; ++i) {
@@ -122,45 +138,74 @@ void carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
             c[i] = g[i - 1] | (p[i - 1] & c[i - 1]);
         }
     }
+
+   if(taskID) {}
+   //TODO move MPI code out of function; it only happens once per thread
 }
 
 
 int main(int argc, char** argv) {
+    int taskID;
+    int nTasks;
+    //int ierr;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &taskID); 
+    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
+    
     int MAX_SIZE = 256;
+    int BLOCK_SIZE = 4;
     int i;
-    int a[MAX_SIZE];
-    int b[MAX_SIZE];
-	
-    int g[MAX_SIZE];
-    int p[MAX_SIZE];
-    int gg[MAX_SIZE / 4];
-    int gp[MAX_SIZE / 4];
-    int sg[MAX_SIZE / 16];
-    int sp[MAX_SIZE / 16];
-    int ssg[MAX_SIZE / 64];
-    int ssp[MAX_SIZE / 64];
-    int* gs[4] = {g, gg, sg, ssg}; // size = log_{block_size}(MAX_SIZE) + 1
-    int* ps[4] = {p, gp, sp, ssp};
+    int a_in[MAX_SIZE];
+    int b_in[MAX_SIZE];
     
-    handleInput(a, b, MAX_SIZE);
-	
-    calcAllGenPro(gs, ps, a, b, 4, MAX_SIZE);
+    // How much of the input each task gets
+    int size = MAX_SIZE / nTasks;
+    int a[size];
+    int b[size];
+
+    int g[size];
+    int p[size];
+    int g_size = BLOCK_SIZE;
+    int gg[size / g_size];
+    int gp[size / g_size];
+    int s_size = power(BLOCK_SIZE, 2);
+    int sg[size / s_size];
+    int sp[size / s_size];
+  //  int ssg[MAX_SIZE / 64];
+  //  int ssp[MAX_SIZE / 64];
+    int* gs[4] = {g, gg, sg/*, ssg*/}; // size = log_{block_size}(MAX_SIZE) + 1
+    int* ps[4] = {p, gp, sp/*, ssp*/};
     
+    if(taskID == 0) {
+        handleInput(a_in, b_in, MAX_SIZE);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+	
+    calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+
     // Calculate supersection carry for all 4 supersections
-    int ssc[MAX_SIZE / 64];
-    carry(ssc, NULL, ssg, ssp, 4, MAX_SIZE / 64);
+   // int ssc[MAX_SIZE / 64];
+   // carry(ssc, NULL, ssg, ssp, 4, MAX_SIZE / 64);
 
     // Calculate section carry for all 16 sections
-    int sc[MAX_SIZE / 16];
-    carry(sc, ssc, sg, sp, 4, MAX_SIZE / 16);
+    int sc[size / s_size];
+    carry(sc, /*ssc*/ NULL, sg, sp, BLOCK_SIZE, size / s_size);
     
     // Calculate group carry for all 64 groups
-    int gc[MAX_SIZE / 4];
-    carry(gc, sc, gg, gp, 4, MAX_SIZE / 4);
+    int gc[size / g_size];
+    carry(gc, sc, gg, gp, BLOCK_SIZE, size / g_size);
     
     // Calculate carry for all 256 bits
-    int c[MAX_SIZE];
-    carry(c, gc, g, p, 4, MAX_SIZE);
+    int c[size];
+    carry(c, gc, g, p, BLOCK_SIZE, size);
     
     // Calculate sum
     int sum[MAX_SIZE];
