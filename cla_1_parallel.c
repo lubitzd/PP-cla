@@ -68,7 +68,7 @@ void binToHex(int *n, char *hex, int size) {
 }
 
 void printHex(int *n, int size) {
-    char hex[64];
+    char hex[size / 4];
     binToHex(n, hex, size);
     printf("%s\n", hex);
 }
@@ -79,29 +79,47 @@ void printArray(int *n, int size) {
         printf("%d", n[i]);
     }
     printf("\n");
+    fflush(stdout);
 }
 
 
 void calcOneGenPro(int *g, int *p, int *gg, int *pp, int size) {
+  //  printf("Starting a round of g/p for size %d\n", size);
+  //  fflush(stdout);
+
     // Calculate gg and pp for all [size] groups of 4
     int j;
     int i;
     for(j = 0; j < size; ++j) {
         i = j * 4;
+  //      printf(" j: %d, i:%d\n", j, i);
+  //      fflush(stdout);
+  //      if(size == 2) {
+  //          printArray(g, size*4);
+  //      }
         gg[j] = g[i + 3] | (p[i + 3] & g[i + 2])
                          | (p[i + 3] & p[i + 2] & g[i + 1])
                          | (p[i + 3] & p[i + 2] & p[i + 1] & g[i]);
+        //printf(" working. Size: %d, iteration %d\n", size, j);
+        //fflush(stdout);
         pp[j] = p[i + 3] & p[i + 2] & p[i + 1] & p[i];
     }
+   // printf("  completed a round of g/p for size %d\n", size);
+   // fflush(stdout);
 }
 
 void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_size) {
+  //  int id;
+  //  MPI_Comm_rank(MPI_COMM_WORLD, &id);
+
     int i;
     // Calculate generate and propagate for all bits
     for(i = 0; i < max_size; ++i) {
         gs[0][i] = a[i] & b[i];
         ps[0][i] = a[i] | b[i];
     }
+  //  printf("%d finished A\n", id);
+   // fflush(stdout);
     
     int size;
     for(i = 1, size = max_size / block_size;
@@ -109,6 +127,8 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
         size = max_size / power(block_size, i);
         calcOneGenPro(gs[i - 1], ps[i - 1], gs[i], ps[i], size);
     }
+   // printf("%d finished B\n", id);
+  //  fflush(stdout);
 }
 
 int carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
@@ -152,31 +172,41 @@ int main(int argc, char** argv) {
     int g_size = BLOCK_SIZE;
     int gg[size / g_size];
     int gp[size / g_size];
-    int s_size = power(BLOCK_SIZE, 2);
+    int s_size = g_size * BLOCK_SIZE;
     int sg[size / s_size];
     int sp[size / s_size];
-  //  int ssg[MAX_SIZE / 64];
-  //  int ssp[MAX_SIZE / 64];
-    int* gs[4] = {g, gg, sg/*, ssg*/}; // size = log_{block_size}(MAX_SIZE) + 1
-    int* ps[4] = {p, gp, sp/*, ssp*/};
+    int ss_size = s_size * BLOCK_SIZE;
+    int ssg[size / ss_size];
+    int ssp[size / ss_size];
+    int* gs[4] = {g, gg, sg, ssg}; // size = log_{block_size}(MAX_SIZE) + 1
+    int* ps[4] = {p, gp, sp, ssp};
     
     if(taskID == 0) {
         handleInput(a_in, b_in, MAX_SIZE);
     }
 
+    printf("Task %d after reading input\n", taskID);
+
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatter(b_in, size, MPI_INT, b, size, MPI_INT, 0, MPI_COMM_WORLD); 
 
+    printf("Task %d after scattering\n", taskID);
+   /* if(taskID == 0) {
+        printArray(b, size);
+    }*/
+    //printArray(b, size);
     MPI_Barrier(MPI_COMM_WORLD);
-    
+    /*if(taskID == 1) {
+        printArray(b, size);
+    }*/
+
     calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
     
+    printf("Task %d after calculating gen/pro\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    // Calculate supersection carry for all 4 supersections
-   // int ssc[MAX_SIZE / 64];
-   // carry(ssc, NULL, ssg, ssp, 4, MAX_SIZE / 64);
 
     MPI_Request req;
     MPI_Status stat;
@@ -188,11 +218,14 @@ int main(int argc, char** argv) {
         MPI_Irecv(&c_in, 1, MPI_INT, taskID - 1, taskID, MPI_COMM_WORLD, &req);
         MPI_Wait(&req, &stat);
     }
+
+    printf("%d: recieved\n", taskID);
+    fflush(stdout);
    
     // Calculate section carry for all 16 sections
-    int sc[size / s_size];
-    sc[0] = c_in;
-    int c_out = carry(sc, /*ssc*/ NULL, sg, sp, BLOCK_SIZE, size / s_size);
+    int ssc[size / ss_size];
+    ssc[0] = c_in;
+    int c_out = carry(ssc, NULL, ssg, ssp, BLOCK_SIZE, size / ss_size);
     
     // Don't send if it's the last one
     if(taskID != (nTasks - 1)) {
@@ -200,29 +233,52 @@ int main(int argc, char** argv) {
         MPI_Isend(&c_out, 1, MPI_INT, taskID + 1, taskID + 1, MPI_COMM_WORLD, &req);
         MPI_Wait(&req, &stat);
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     
+    
+    // Calculate section carry for all sections
+    int sc[size / s_size];
+    sc[0] = 0;
+    carry(sc, ssc, sg, sp, BLOCK_SIZE, size / s_size);
+
+    MPI_Barrier(MPI_COMM_WORLD);
     
     // Calculate group carry for all 64 groups
     int gc[size / g_size];
+    gc[0] = 0;
     carry(gc, sc, gg, gp, BLOCK_SIZE, size / g_size);
     
+    MPI_Barrier(MPI_COMM_WORLD);
+
     // Calculate carry for all 256 bits
     int c[size];
+    c[0] = 0;
     carry(c, gc, g, p, BLOCK_SIZE, size);
     
+    MPI_Barrier(MPI_COMM_WORLD);
+
     // Calculate sum
-    int sum[MAX_SIZE];
-    for(i = 0; i < MAX_SIZE; ++i) {
-        int carryIn;
-        if(i == 0) {
+    int sum[size];
+    for(i = 0; i < size; ++i) {
+      //  int carryIn;
+       /* if(i == 0) {
             carryIn = 0;
-        } else {
-            carryIn = c[i];
-        }
-        sum[i] = a[i] ^ b[i] ^ carryIn;
+        } else {*/
+        //    carryIn = c[i];
+      //  }
+        sum[i] = a[i] ^ b[i] ^ c[i];
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     
-    printHex(sum, MAX_SIZE);
     
+    printHex(a, size);
+    printHex(b, size);
+    printHex(c, size);
+    printHex(sum, size);
+
+    MPI_Finalize();
+
     return 0;
 }
