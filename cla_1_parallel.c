@@ -17,8 +17,8 @@ void handleInput(int *a, int *b, int size) {
     int hex_size = size / 4;
    //printf("%d size\n", hex_size == 64);
     // Take input from user
-    char a_hex[hex_size+1];
-    char b_hex[hex_size+1];
+    char a_hex[262144];
+    char b_hex[262144];
     scanf("%s", a_hex);
     scanf("%s", b_hex);
     
@@ -27,14 +27,14 @@ void handleInput(int *a, int *b, int size) {
     int i;
     int j;
     // For each char in input
-    for(i = 0; i < 64; ++i) {
+    for(i = 0; i < 262144; ++i) {
         // Start with the last char, turn it into a char*
-        char a_char[2] = {a_hex[hex_size-1 - i], '\0'};
+        char a_char[2] = {a_hex[26213 - i], '\0'};
         // Find its position in lookup string
         char *a_pos = strstr(chars, a_char);
         // Get the integer number corresponding to the hex char
         int a_index = a_pos - chars;
-        char b_char[2] = {b_hex[hex_size-1 - i], '\0'};
+        char b_char[2] = {b_hex[262143 - i], '\0'};
         char *b_pos = strstr(chars, b_char);
         int b_index = b_pos - chars;
         
@@ -158,12 +158,18 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &taskID); 
     MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
     
-    int MAX_SIZE = 256;
-    int BLOCK_SIZE = 4;
+   // printf("%d: here\n", taskID);
+   // fflush(stdout);
+
+    int MAX_SIZE = 1048576;
+    int BLOCK_SIZE = 16;
     int i;
     int a_in[MAX_SIZE];
     int b_in[MAX_SIZE];
     
+   // printf("%d: A\n", taskID);
+   //t diff fflush(stdout);
+
     // How much of the input each task gets
     int size = MAX_SIZE / nTasks;
     int a[size];
@@ -199,7 +205,7 @@ int main(int argc, char** argv) {
         handleInput(a_in, b_in, MAX_SIZE);
     }
 
-   // printf("Task %d after reading input\n", taskID);
+ //  printf("Task %d after reading input\n", taskID);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -302,6 +308,7 @@ int main(int argc, char** argv) {
     for(i = 0; i < levels; ++i) {
         free(gs[i]);
         free(ps[i]);
+        free(cs[i]);
     }
 
     MPI_Finalize();
