@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <mpi.h>
+#include <stdlib.h>
 
 
 int power(int a, int b) {
@@ -13,9 +14,11 @@ int power(int a, int b) {
 }
 
 void handleInput(int *a, int *b, int size) {
+    int hex_size = size / 4;
+   //printf("%d size\n", hex_size == 64);
     // Take input from user
-    char a_hex[64];
-    char b_hex[64];
+    char a_hex[hex_size+1];
+    char b_hex[hex_size+1];
     scanf("%s", a_hex);
     scanf("%s", b_hex);
     
@@ -26,12 +29,12 @@ void handleInput(int *a, int *b, int size) {
     // For each char in input
     for(i = 0; i < 64; ++i) {
         // Start with the last char, turn it into a char*
-        char a_char[2] = {a_hex[63 - i], '\0'};
+        char a_char[2] = {a_hex[hex_size-1 - i], '\0'};
         // Find its position in lookup string
         char *a_pos = strstr(chars, a_char);
         // Get the integer number corresponding to the hex char
         int a_index = a_pos - chars;
-        char b_char[2] = {b_hex[63 - i], '\0'};
+        char b_char[2] = {b_hex[hex_size-1 - i], '\0'};
         char *b_pos = strstr(chars, b_char);
         int b_index = b_pos - chars;
         
@@ -80,6 +83,15 @@ void printArray(int *n, int size) {
     }
     printf("\n");
     fflush(stdout);
+}
+
+int calculateLevels(int block_size, int size) {
+    int levels = 1;
+    while(size > block_size) {
+        size /= block_size;
+        ++levels;
+    }
+    return levels;
 }
 
 
@@ -147,7 +159,20 @@ int main(int argc, char** argv) {
     int a[size];
     int b[size];
 
-    int g[size];
+    // Create generate and propegate arrays
+    int levels = calculateLevels(BLOCK_SIZE, size);
+    int* gs[levels];
+    int* ps[levels];
+    int sizes[levels];
+    for(i = 0; i < levels; ++i) {
+        sizes[i] = size / power(BLOCK_SIZE, i);
+        gs[i] = (int*) calloc(sizes[i], sizeof(int));
+        ps[i] = (int*) calloc(sizes[i], sizeof(int));
+    }
+
+    printArray(sizes, levels);
+
+   /* int g[size];
     int p[size];
     int g_size = BLOCK_SIZE;
     int gg[size / g_size];
@@ -157,27 +182,27 @@ int main(int argc, char** argv) {
     int sp[size / s_size];
     int ss_size = s_size * BLOCK_SIZE;
     int ssg[size / ss_size];
-    int ssp[size / ss_size];
-    int* gs[4] = {g, gg, sg, ssg}; // size = log_{block_size}(MAX_SIZE) + 1
-    int* ps[4] = {p, gp, sp, ssp};
+    int ssp[size / ss_size];*/
+    //int* gs[4] = {g, gg, sg, ssg}; // size = log_{block_size}(MAX_SIZE) + 1
+    //int* ps[4] = {p, gp, sp, ssp};
     
     if(taskID == 0) {
         handleInput(a_in, b_in, MAX_SIZE);
     }
 
-    printf("Task %d after reading input\n", taskID);
+   // printf("Task %d after reading input\n", taskID);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Scatter(b_in, size, MPI_INT, b, size, MPI_INT, 0, MPI_COMM_WORLD); 
 
-    printf("Task %d after scattering\n", taskID);
+   // printf("Task %d after scattering\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
 
     calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
     
-    printf("Task %d after calculating gen/pro\n", taskID);
+  //  printf("Task %d after calculating gen/pro\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
 
 
@@ -190,17 +215,17 @@ int main(int argc, char** argv) {
     } else {
         MPI_Irecv(&c_in, 1, MPI_INT, taskID - 1, taskID, MPI_COMM_WORLD, &req);
         MPI_Wait(&req, &stat);
-        printf("%d: received %d\n", taskID, c_in);
-        fflush(stdout);
+       // printf("%d: received %d\n", taskID, c_in);
+       // fflush(stdout);
     }
 
-    printf("%d: recieved\n", taskID);
-    fflush(stdout);
+   // printf("%d: recieved\n", taskID);
+   // fflush(stdout);
    
     // Calculate section carry for all 16 sections
-    int ssc[size / ss_size];
+    int ssc[sizes[3]];
     ssc[0] = c_in;
-    int c_out = carry(ssc, NULL, ssg, ssp, BLOCK_SIZE, size / ss_size);
+    int c_out = carry(ssc, NULL, gs[3], ps[3], BLOCK_SIZE, sizes[3]);
     
     // Don't send if it's the last one
     if(taskID != (nTasks - 1)) {
@@ -213,23 +238,23 @@ int main(int argc, char** argv) {
     
     
     // Calculate section carry for all sections
-    int sc[size / s_size];
+    int sc[sizes[2]];
     sc[0] = c_in;
-    carry(sc, ssc, sg, sp, BLOCK_SIZE, size / s_size);
+    carry(sc, ssc, gs[2], ps[2], BLOCK_SIZE, sizes[2]);
 
     MPI_Barrier(MPI_COMM_WORLD);
     
     // Calculate group carry for all 64 groups
-    int gc[size / g_size];
+    int gc[sizes[1]];
     gc[0] = c_in;
-    carry(gc, sc, gg, gp, BLOCK_SIZE, size / g_size);
+    carry(gc, sc, gs[1], ps[1], BLOCK_SIZE, sizes[1]);
     
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Calculate carry for all 256 bits
-    int c[size];
+    int c[sizes[0]];
     c[0] = c_in;
-    carry(c, gc, g, p, BLOCK_SIZE, size);
+    carry(c, gc, gs[0], ps[0], BLOCK_SIZE, sizes[0]);
     
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -248,8 +273,16 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
 
     if(taskID == 0) {
-        //printArray(total, MAX_SIZE);
+       // printArray(a_in, MAX_SIZE);
+       // printArray(b_in, MAX_SIZE);
+       // printArray(c, size);
+       // printArray(total, MAX_SIZE);
         printHex(total, MAX_SIZE);
+    }
+
+    for(i = 0; i < levels; ++i) {
+        free(gs[i]);
+        free(ps[i]);
     }
 
     MPI_Finalize();
