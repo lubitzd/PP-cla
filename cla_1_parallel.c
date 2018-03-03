@@ -13,12 +13,13 @@ int power(int a, int b) {
     return ret;
 }
 
+#define HEX_IN_SIZE 262144 
 void handleInput(int *a, int *b, int size, char** argv) {
     int hex_size = size / 4;
-   //printf("%d size\n", hex_size == 64);
+   printf("%d size\n", hex_size );
     // Take input from user
-    char a_hex[hex_size + 1];
-    char b_hex[hex_size + 1];
+    char a_hex[HEX_IN_SIZE + 1] = {0};  // 262145]; //hex_size + 1];
+    char b_hex[HEX_IN_SIZE + 1] = {0};  //262145]; //hex_size + 1];
 
     FILE *my_input_file = NULL;
     FILE *my_output_file = NULL;
@@ -29,7 +30,9 @@ void handleInput(int *a, int *b, int size, char** argv) {
         printf("Failed to open input data file: %s \n", argv[2]);
     }
 
+    printf("hello\n");
     fscanf(my_input_file, "%s %s", a_hex, b_hex);
+    printf("hi\n");
     fprintf(my_output_file, "%s\n%s\n", a_hex, b_hex);
                         
     fclose(my_input_file);
@@ -44,14 +47,15 @@ void handleInput(int *a, int *b, int size, char** argv) {
     int i;
     int j;
     // For each char in input
-    for(i = 0; i < hex_size; ++i) {
+    for(i = 0; i < HEX_IN_SIZE; ++i) {
+        //printf("I'm %d\n", i);
         // Start with the last char, turn it into a char*
-        char a_char[2] = {a_hex[hex_size - 1 - i], '\0'};
+        char a_char[2] = {a_hex[HEX_IN_SIZE - 1 - i], '\0'};
         // Find its position in lookup string
         char *a_pos = strstr(chars, a_char);
         // Get the integer number corresponding to the hex char
         int a_index = a_pos - chars;
-        char b_char[2] = {b_hex[hex_size - 1 - i], '\0'};
+        char b_char[2] = {b_hex[HEX_IN_SIZE - 1 - i], '\0'};
         char *b_pos = strstr(chars, b_char);
         int b_index = b_pos - chars;
         
@@ -120,16 +124,30 @@ int calculateLevels(int block_size, int size) {
 }
 
 
-void calcOneGenPro(int *g, int *p, int *gg, int *pp, int size) {
+void calcOneGenPro(int *g, int *p, int *gg, int *pp, int block_size, int size) {
     // Calculate gg and pp for all [size] groups of 4
     int j;
     int i;
+    int k;
     for(j = 0; j < size; ++j) {
-        i = j * 4;
-        gg[j] = g[i + 3] | (p[i + 3] & g[i + 2])
-                         | (p[i + 3] & p[i + 2] & g[i + 1])
-                         | (p[i + 3] & p[i + 2] & p[i + 1] & g[i]);
-        pp[j] = p[i + 3] & p[i + 2] & p[i + 1] & p[i];
+        i = j * block_size;
+        
+
+        int prop = 1;
+        gg[j] = g[i + block_size - 1];
+        for(k = 0; k < block_size - 1; ++k) {
+            prop &= p[i + block_size - 1 - k];
+            gg[j] |= g[i + block_size - 2 - k]
+                     & prop;
+        }
+
+    //    gg[j] = g[i + 3] | (p[i + 3] & g[i + 2])
+   //                      | (p[i + 3] & p[i + 2] & g[i + 1])
+    //                     | (p[i + 3] & p[i + 2] & p[i + 1] & g[i]);
+    
+        pp[j] = prop & p[i];
+
+    //    pp[j] = p[i + 3] & p[i + 2] & p[i + 1] & p[i];
     }
 }
 
@@ -145,7 +163,7 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
     for(i = 1, size = max_size / block_size;
                 size > block_size; ++i) {
         size = max_size / power(block_size, i);
-        calcOneGenPro(gs[i - 1], ps[i - 1], gs[i], ps[i], size);
+        calcOneGenPro(gs[i - 1], ps[i - 1], gs[i], ps[i], block_size, size);
     }
 }
 
@@ -186,11 +204,15 @@ int main(int argc, char** argv) {
    // printf("%d: here\n", taskID);
    // fflush(stdout);
 
-    int MAX_SIZE = 256; //1048576;
-    int BLOCK_SIZE = 4;
+    int MAX_SIZE = 1048576;
+    int BLOCK_SIZE = 16;
     int i;
-    int a_in[MAX_SIZE];
-    int b_in[MAX_SIZE];
+ //   printf("aaa\n");
+    int* a_in = (int*) calloc(MAX_SIZE, sizeof(int));
+    int* b_in = (int*) calloc(MAX_SIZE, sizeof(int)); 
+  //   printf("bbb\n");
+  //  int a_in[MAX_SIZE];
+  //  int b_in[MAX_SIZE];
     
    // printf("%d: A\n", taskID);
    //fflush(stdout);
@@ -199,6 +221,7 @@ int main(int argc, char** argv) {
     int size = MAX_SIZE / nTasks;
     int a[size];
     int b[size];
+  //   printf("ccc\n");
 
     // Create generate and propegate arrays
     int levels = calculateLevels(BLOCK_SIZE, size);
@@ -227,22 +250,22 @@ int main(int argc, char** argv) {
     //int* ps[4] = {p, gp, sp, ssp};
     
     if(taskID == 0) {
-        handleInput(a_in, b_in, MAX_SIZE,  argv);
+        handleInput(a_in, b_in, MAX_SIZE, argv);
     }
 
-  // printf("Task %d after reading input\n", taskID);
+   printf("Task %d after reading input\n", taskID);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Scatter(b_in, size, MPI_INT, b, size, MPI_INT, 0, MPI_COMM_WORLD); 
 
- //   printf("Task %d after scattering\n", taskID);
+    printf("Task %d after scattering\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
 
     calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
     
-  //  printf("Task %d after calculating gen/pro\n", taskID);
+    printf("Task %d after calculating gen/pro\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
     
     
@@ -330,11 +353,15 @@ int main(int argc, char** argv) {
         printHex(total, MAX_SIZE, argv);
     }
 
+    MPI_Barrier(MPI_COMM_WORLD);
+
     for(i = 0; i < levels; ++i) {
         free(gs[i]);
         free(ps[i]);
         free(cs[i]);
     }
+    free(a_in);
+    free(b_in);
 
     MPI_Finalize();
 
