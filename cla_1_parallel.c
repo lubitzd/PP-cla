@@ -180,7 +180,6 @@ int main(int argc, char** argv) {
         ps[i] = (int*) calloc(sizes[i], sizeof(int));
     }
 
-    printArray(sizes, levels);
 
    /* int g[size];
     int p[size];
@@ -246,7 +245,7 @@ int main(int argc, char** argv) {
    
     // Calculate upper level carry
     //ssc[0] = c_in;
-    int c_out = carry(c_in, cs[level-1], NULL, gs[levels-1], ps[levels-1], BLOCK_SIZE, sizes[levels-1]);
+    int c_out = carry(c_in, cs[levels-1], NULL, gs[levels-1], ps[levels-1], BLOCK_SIZE, sizes[levels-1]);
     
     // Don't send if it's the last one
     if(taskID != (nTasks - 1)) {
