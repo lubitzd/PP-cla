@@ -16,32 +16,25 @@ int power(int a, int b) {
 #define HEX_IN_SIZE 262144 
 void handleInput(int *a, int *b, int size, char** argv) {
     int hex_size = size / 4;
-   printf("%d size\n", hex_size );
+  
     // Take input from user
-    char a_hex[HEX_IN_SIZE + 1] = {0};  // 262145]; //hex_size + 1];
-    char b_hex[HEX_IN_SIZE + 1] = {0};  //262145]; //hex_size + 1];
+    char a_hex[HEX_IN_SIZE + 1] = {0}; 
+    char b_hex[HEX_IN_SIZE + 1] = {0};
 
     FILE *my_input_file = NULL;
-    FILE *my_output_file = NULL;
+  //  FILE *my_output_file = NULL;
     if((my_input_file = fopen(argv[1], "r")) == NULL) {
         printf("Failed to open input data file: %s \n", argv[1]);
     }
-    if((my_output_file = fopen(argv[2], "w")) == NULL) {
-        printf("Failed to open input data file: %s \n", argv[2]);
-    }
-
-    printf("hello\n");
+   // if((my_output_file = fopen(argv[2], "w")) == NULL) {
+   //     printf("Failed to open input data file: %s \n", argv[2]);
+   // }
     fscanf(my_input_file, "%s %s", a_hex, b_hex);
-    printf("hi\n");
-    fprintf(my_output_file, "%s\n%s\n", a_hex, b_hex);
+   // fprintf(my_output_file, "%s\n%s\n", a_hex, b_hex);
                         
     fclose(my_input_file);
-    fclose(my_output_file);
+  //  fclose(my_output_file);
 
-
-   // scanf("%s", a_hex);
-   // scanf("%s", b_hex);
-    
     // Translate to binary
     char *chars = "0123456789ABCDEF";
     int i;
@@ -102,7 +95,6 @@ void printHex(int *n, int size, char** argv) {
     }
     fprintf(my_output_file, "%s\n", hex);
     fclose(my_output_file);
-    printf("%s\n", hex);
 }
 
 void printArray(int *n, int size) {
@@ -253,19 +245,19 @@ int main(int argc, char** argv) {
         handleInput(a_in, b_in, MAX_SIZE, argv);
     }
 
-   printf("Task %d after reading input\n", taskID);
+  // printf("Task %d after reading input\n", taskID);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Scatter(b_in, size, MPI_INT, b, size, MPI_INT, 0, MPI_COMM_WORLD); 
 
-    printf("Task %d after scattering\n", taskID);
+  //  printf("Task %d after scattering\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
 
     calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
     
-    printf("Task %d after calculating gen/pro\n", taskID);
+  //  printf("Task %d after calculating gen/pro\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
     
     
