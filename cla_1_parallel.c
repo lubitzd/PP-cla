@@ -124,14 +124,6 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
     }
 }
 
-void carryAll(int c_in, int** cs, int** gs, int** ps, int block_size, int* sizes, int levels) {
-    int i;
-    for(i = levels - 2; i >= 0, --i) {
-        carry(c_in, cs[i], cs[i+1], gs[i], ps[i], block_size, sizes[i]);
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-}
-
 int carry(int c_in, int* c, int* prevc, int* g, int* p, int blocksize, int size) {
     c[0] = c_in;
     
@@ -147,6 +139,14 @@ int carry(int c_in, int* c, int* prevc, int* g, int* p, int blocksize, int size)
     
     // Return final carry out
     return g[size - 1] | (p[size - 1] & c[size - 1]);
+}
+
+void carryAll(int c_in, int** cs, int** gs, int** ps, int block_size, int* sizes, int levels) {
+    int i;
+    for(i = levels - 2; i >= 0; --i) {
+        carry(c_in, cs[i], cs[i+1], gs[i], ps[i], block_size, sizes[i]);
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 }
 
 
@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
    
     // Calculate upper level carry
     //ssc[0] = c_in;
-    int c_out = carry(c_in, ssc, NULL, gs[levels-1], ps[levels-1], BLOCK_SIZE, sizes[levels-1]);
+    int c_out = carry(c_in, cs[level-1], NULL, gs[levels-1], ps[levels-1], BLOCK_SIZE, sizes[levels-1]);
     
     // Don't send if it's the last one
     if(taskID != (nTasks - 1)) {
@@ -281,7 +281,7 @@ int main(int argc, char** argv) {
     // Calculate sum
     int sum[size];
     for(i = 0; i < size; ++i) {
-        sum[i] = a[i] ^ b[i] ^ c[i];
+        sum[i] = a[i] ^ b[i] ^ cs[0][i];
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
