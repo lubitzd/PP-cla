@@ -13,28 +13,45 @@ int power(int a, int b) {
     return ret;
 }
 
-void handleInput(int *a, int *b, int size) {
+void handleInput(int *a, int *b, int size, char** argv) {
     int hex_size = size / 4;
    //printf("%d size\n", hex_size == 64);
     // Take input from user
-    char a_hex[262144];
-    char b_hex[262144];
-    scanf("%s", a_hex);
-    scanf("%s", b_hex);
+    char a_hex[hex_size + 1];
+    char b_hex[hex_size + 1];
+
+    FILE *my_input_file = NULL;
+    FILE *my_output_file = NULL;
+    if((my_input_file = fopen(argv[1], "r")) == NULL) {
+        printf("Failed to open input data file: %s \n", argv[1]);
+    }
+    if((my_output_file = fopen(argv[2], "w")) == NULL) {
+        printf("Failed to open input data file: %s \n", argv[2]);
+    }
+
+    fscanf(my_input_file, "%s %s", a_hex, b_hex);
+    fprintf(my_output_file, "%s\n%s\n", a_hex, b_hex);
+                        
+    fclose(my_input_file);
+    fclose(my_output_file);
+
+
+   // scanf("%s", a_hex);
+   // scanf("%s", b_hex);
     
     // Translate to binary
     char *chars = "0123456789ABCDEF";
     int i;
     int j;
     // For each char in input
-    for(i = 0; i < 262144; ++i) {
+    for(i = 0; i < hex_size; ++i) {
         // Start with the last char, turn it into a char*
-        char a_char[2] = {a_hex[26213 - i], '\0'};
+        char a_char[2] = {a_hex[hex_size - 1 - i], '\0'};
         // Find its position in lookup string
         char *a_pos = strstr(chars, a_char);
         // Get the integer number corresponding to the hex char
         int a_index = a_pos - chars;
-        char b_char[2] = {b_hex[262143 - i], '\0'};
+        char b_char[2] = {b_hex[hex_size - 1 - i], '\0'};
         char *b_pos = strstr(chars, b_char);
         int b_index = b_pos - chars;
         
@@ -68,11 +85,19 @@ void binToHex(int *n, char *hex, int size) {
             value = 0;
         }
     }
+    hex[size / 4] = '\0';
 }
 
-void printHex(int *n, int size) {
-    char hex[size / 4];
+void printHex(int *n, int size, char** argv) {
+    char hex[size / 4 + 1];
     binToHex(n, hex, size);
+    
+    FILE *my_output_file=NULL;
+    if((my_output_file = fopen(argv[2], "a")) == NULL) {
+        printf("Failed to open input data file: %s \n", argv[2]);
+    }
+    fprintf(my_output_file, "%s\n", hex);
+    fclose(my_output_file);
     printf("%s\n", hex);
 }
 
@@ -161,14 +186,14 @@ int main(int argc, char** argv) {
    // printf("%d: here\n", taskID);
    // fflush(stdout);
 
-    int MAX_SIZE = 1048576;
-    int BLOCK_SIZE = 16;
+    int MAX_SIZE = 256; //1048576;
+    int BLOCK_SIZE = 4;
     int i;
     int a_in[MAX_SIZE];
     int b_in[MAX_SIZE];
     
    // printf("%d: A\n", taskID);
-   //t diff fflush(stdout);
+   //fflush(stdout);
 
     // How much of the input each task gets
     int size = MAX_SIZE / nTasks;
@@ -202,17 +227,17 @@ int main(int argc, char** argv) {
     //int* ps[4] = {p, gp, sp, ssp};
     
     if(taskID == 0) {
-        handleInput(a_in, b_in, MAX_SIZE);
+        handleInput(a_in, b_in, MAX_SIZE,  argv);
     }
 
- //  printf("Task %d after reading input\n", taskID);
+  // printf("Task %d after reading input\n", taskID);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Scatter(a_in, size, MPI_INT, a, size, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Scatter(b_in, size, MPI_INT, b, size, MPI_INT, 0, MPI_COMM_WORLD); 
 
-   // printf("Task %d after scattering\n", taskID);
+ //   printf("Task %d after scattering\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
 
     calcAllGenPro(gs, ps, a, b, BLOCK_SIZE, size);
@@ -302,7 +327,7 @@ int main(int argc, char** argv) {
        // printArray(b_in, MAX_SIZE);
        // printArray(c, size);
        // printArray(total, MAX_SIZE);
-        printHex(total, MAX_SIZE);
+        printHex(total, MAX_SIZE, argv);
     }
 
     for(i = 0; i < levels; ++i) {
