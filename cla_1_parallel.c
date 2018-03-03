@@ -124,7 +124,17 @@ void calcAllGenPro(int **gs, int **ps, int *a, int *b, int block_size, int max_s
     }
 }
 
-int carry(int* c, int* prevc, int* g, int* p, int blocksize, int size) {
+void carryAll(int c_in, int** cs, int** gs, int** ps, int block_size, int* sizes, int levels) {
+    int i;
+    for(i = levels - 2; i >= 0, --i) {
+        carry(c_in, cs[i], cs[i+1], gs[i], ps[i], block_size, sizes[i]);
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+}
+
+int carry(int c_in, int* c, int* prevc, int* g, int* p, int blocksize, int size) {
+    c[0] = c_in;
+    
     int i;
     for(i = 1; i < size; ++i) {
         // Calculate carry in for part i, i.e. carry out for i-1
@@ -204,12 +214,24 @@ int main(int argc, char** argv) {
     
   //  printf("Task %d after calculating gen/pro\n", taskID);
     MPI_Barrier(MPI_COMM_WORLD);
-
-
+    
+    
+    
+   // int ssc[sizes[3]];
+    //int sc[sizes[2]];
+   // int gc[sizes[1]];
+   // int c[sizes[0]];
+    
+    int* cs[levels];
+    for(i = 0; i < levels; ++i) {
+        cs[i] = (int*) calloc(sizes[i], sizeof(int));
+    }
+    int c_in;
+    // carryAll(int c_in, int** cs, int** gs, int** ps, int block_size, int* sizes, int levels)
+    
     MPI_Request req;
     MPI_Status stat;
-    int c_in;
-    // Don't receive if it's the first task
+    // Don't receive c_in if it's the first task
     if(taskID == 0) {
         c_in = 0;
     } else {
@@ -222,10 +244,9 @@ int main(int argc, char** argv) {
    // printf("%d: recieved\n", taskID);
    // fflush(stdout);
    
-    // Calculate section carry for all 16 sections
-    int ssc[sizes[3]];
-    ssc[0] = c_in;
-    int c_out = carry(ssc, NULL, gs[3], ps[3], BLOCK_SIZE, sizes[3]);
+    // Calculate upper level carry
+    //ssc[0] = c_in;
+    int c_out = carry(c_in, ssc, NULL, gs[levels-1], ps[levels-1], BLOCK_SIZE, sizes[levels-1]);
     
     // Don't send if it's the last one
     if(taskID != (nTasks - 1)) {
@@ -236,28 +257,27 @@ int main(int argc, char** argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     
+    carryAll(c_in, cs, gs, ps, BLOCK_SIZE, sizes, levels);
     
+    /**
     // Calculate section carry for all sections
-    int sc[sizes[2]];
-    sc[0] = c_in;
-    carry(sc, ssc, gs[2], ps[2], BLOCK_SIZE, sizes[2]);
+    //sc[0] = c_in;
+    carry(c_in, sc, ssc, gs[2], ps[2], BLOCK_SIZE, sizes[2]);
 
     MPI_Barrier(MPI_COMM_WORLD);
     
     // Calculate group carry for all 64 groups
-    int gc[sizes[1]];
-    gc[0] = c_in;
-    carry(gc, sc, gs[1], ps[1], BLOCK_SIZE, sizes[1]);
+    //gc[0] = c_in;
+    carry(c_in, gc, sc, gs[1], ps[1], BLOCK_SIZE, sizes[1]);
     
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Calculate carry for all 256 bits
-    int c[sizes[0]];
-    c[0] = c_in;
-    carry(c, gc, gs[0], ps[0], BLOCK_SIZE, sizes[0]);
+   // c[0] = c_in;
+    carry(c_in, c, gc, gs[0], ps[0], BLOCK_SIZE, sizes[0]);
     
     MPI_Barrier(MPI_COMM_WORLD);
-
+*/
     // Calculate sum
     int sum[size];
     for(i = 0; i < size; ++i) {
